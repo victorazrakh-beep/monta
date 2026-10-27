@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { CONTACT_EMAIL } from "@/lib/contact";
 
 // Placeholders until a Panamanian lawyer drafts the final texts.
 const PAGES: Record<string, { title: string; body: string[] }> = {
@@ -7,11 +8,12 @@ const PAGES: Record<string, { title: string; body: string[] }> = {
     "Monta es una plataforma que permite a organizadores vender entradas y a compradores adquirirlas.",
     "Monta actúa como agente de cobro del organizador. El organizador es responsable del evento, su realización y su contenido.",
     "El comprador paga un cargo por servicio que se muestra antes de pagar. La política de reembolso la define cada organizador y aparece en la página del evento.",
+    `Para dudas sobre una compra o un evento, escríbenos a ${CONTACT_EMAIL}.`,
     "Este texto es provisional y será reemplazado por los términos definitivos.",
   ] },
   privacidad: { title: "Política de privacidad", body: [
     "Usamos tus datos (nombre, correo, teléfono y los que el evento requiera) para emitir y enviarte tus entradas, y los compartimos con el organizador del evento.",
-    "No vendemos tus datos. Puedes pedir que los borremos escribiendo a nuestro correo de contacto.",
+    `No vendemos tus datos. Puedes pedir que los borremos escribiendo a ${CONTACT_EMAIL}.`,
     "Este texto es provisional y será reemplazado por la política definitiva.",
   ] },
   cookies: { title: "Cookies", body: [
