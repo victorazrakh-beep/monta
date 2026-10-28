@@ -106,20 +106,19 @@ export async function importGoogleVenues(queries = DEFAULT_QUERIES) {
   let added = 0, updated = 0;
 
   for (const [cid, i] of byCid) {
-    const cat = [i.category, ...(i.additional_categories ?? [])].filter(Boolean).join(", ");
     const fresh = { rating: i.rating?.value ?? null, reviews_count: i.rating?.votes_count ?? 0, imported_at: now };
     const prev = known.get(cid);
     if (prev) {
       // Claimed venues keep what their owner wrote; only Google's rating is refreshed.
       const patch = prev.owner_id ? fresh : {
-        ...fresh, status: "live", name: i.title, category: i.category ?? null, zone: zoneOf(i), address: i.address ?? null, lat: i.latitude, lng: i.longitude,
+        ...fresh, status: "live", kind: kindOf(i.category ?? ""), name: i.title, category: i.category ?? null, zone: zoneOf(i), address: i.address ?? null, lat: i.latitude, lng: i.longitude,
         phone: i.phone ?? null, website: i.url ?? null, ...(i.main_image ? { cover_url: i.main_image } : {}),
       };
       await db.from("venues").update(patch).eq("id", prev.id);
       updated++;
     } else {
       const { error } = await db.from("venues").insert({
-        ...fresh, slug: slugify(i.title!), name: i.title, kind: kindOf(cat), category: i.category ?? null,
+        ...fresh, slug: slugify(i.title!), name: i.title, kind: kindOf(i.category ?? ""), category: i.category ?? null,
         zone: zoneOf(i), address: i.address ?? null,
         lat: i.latitude, lng: i.longitude, phone: i.phone ?? null, website: i.url ?? null, cover_url: i.main_image ?? null,
         source: "google", google_cid: cid, status: "live",
