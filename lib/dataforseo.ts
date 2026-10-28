@@ -16,7 +16,7 @@ export const DEFAULT_QUERIES = [
 
 // Google searches also return hotels, restaurants, offices and so on near a match. Only keep places whose main
 // Google category is an event space.
-const EVENT_SPACE = /sal[oó]n de (eventos|fiestas|banquetes|recepciones|convenciones)|sala de (eventos|fiestas)|lugar (para|de) (eventos|bodas|celebraciones)|centro de (convenciones|eventos|conferencias)|event venue|banquet hall|wedding venue|convention cent|conference cent|party venue|reception hall/i;
+const EVENT_SPACE = /sal[oó]n (para|de) (eventos|fiestas|banquetes|bodas|recepciones|convenciones)|sala (de|para) (banquetes|eventos|fiestas|baile)|recinto (para|de) eventos|palacio de (exposiciones|congresos)|centro de (convenciones|eventos|conferencias)|lugar (para|de) (eventos|bodas|celebraciones)|event venue|banquet hall|wedding venue|convention cent|conference cent|ballroom/i;
 export const isEventSpace = (category?: string | null) => !!category && EVENT_SPACE.test(category);
 const PANAMA_CITY = "8.9824,-79.5199,12z";
 
