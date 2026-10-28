@@ -12,6 +12,7 @@ export async function Header() {
         <Link href="/"><Logo /></Link>
         <nav className="hidden md:flex items-center gap-1 ml-4 text-sm text-sub">
           <Link className="px-3 py-2 hover:text-main" href="/busqueda">{t.nav_explore}</Link>
+          <Link className="px-3 py-2 hover:text-main" href="/espacios">{t.nav_venues}</Link>
           <Link className="px-3 py-2 hover:text-main" href="/tickets">{t.nav_tickets}</Link>
           {profile && <Link className="px-3 py-2 hover:text-main" href="/mis-eventos">{t.nav_my_events}</Link>}
           {profile?.role === "admin" && <Link className="px-3 py-2 hover:text-main" href="/admin">{t.nav_admin}</Link>}
@@ -33,6 +34,7 @@ export async function Header() {
       </div>
       <nav className="md:hidden flex gap-1 px-4 pb-2 text-sm text-sub overflow-x-auto">
         <Link className="chip h-8 shrink-0" href="/busqueda">{t.nav_explore}</Link>
+        <Link className="chip h-8 shrink-0" href="/espacios">{t.nav_venues}</Link>
         <Link className="chip h-8 shrink-0" href="/tickets">{t.nav_tickets}</Link>
         <Link className="chip h-8 shrink-0" href="/crear">{t.nav_create}</Link>
         {profile && <Link className="chip h-8 shrink-0" href="/mis-eventos">{t.nav_my_events}</Link>}

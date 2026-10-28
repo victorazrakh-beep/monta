@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { admin } from "@/lib/supabase/admin";
 import { qrPng } from "@/lib/qr";
 import { ics } from "@/lib/ics";
+import { CONTACT_EMAIL } from "@/lib/contact";
 import { eventDate, eventTime, money } from "@/lib/format";
 import type { EventRow, Order, Ticket } from "@/lib/types";
 
@@ -75,5 +76,47 @@ export async function sendReviewResult(eventId: string, approved: boolean, note?
     html: wrap(approved
       ? `<p>¡Buenas noticias! <b>${ev.name}</b> fue aprobado y ya está a la venta.</p><p><a href="${env.siteUrl}/e/${ev.slug}">Ver evento</a></p>`
       : `<p>Revisamos <b>${ev.name}</b> y necesita algunos cambios antes de publicarse:</p><p>${note ?? ""}</p><p><a href="${env.siteUrl}/mis-eventos">Editar evento</a></p>`),
+  });
+}
+
+const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
+// A venue quote request goes to Monta (and the venue's owner, if it has one); the requester gets a receipt.
+export async function sendVenueRequest(requestId: string) {
+  const db = admin();
+  const { data: r } = await db.from("venue_requests").select("*, venues(name, slug, owner_id)").eq("id", requestId)
+    .single<{ name: string; email: string; phone: string | null; event_type: string | null; event_date: string | null;
+      guests: number | null; budget: string | null; message: string;
+      venues: { name: string; slug: string; owner_id: string | null } | null }>();
+  if (!r) return;
+  const venue = r.venues?.name ?? "Monta (ayuda para encontrar espacio)";
+  const to = [CONTACT_EMAIL];
+  if (r.venues?.owner_id) {
+    const { data: o } = await db.from("profiles").select("email").eq("id", r.venues.owner_id).single<{ email: string | null }>();
+    if (o?.email) to.push(o.email);
+  }
+  const rows = ([["Nombre", r.name], ["Correo", r.email], ["Teléfono", r.phone], ["Tipo de evento", r.event_type],
+    ["Fecha", r.event_date], ["Invitados", r.guests], ["Presupuesto", r.budget]] as const)
+    .filter(([, v]) => v != null && v !== "")
+    .map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0;color:#5b616b">${k}</td><td style="padding:4px 0"><b>${esc(String(v))}</b></td></tr>`).join("");
+
+  await send({
+    from: env.emailFrom,
+    to,
+    replyTo: r.email,
+    subject: `Solicitud de cotización: ${venue}`,
+    html: wrap(`<h1 style="font-size:20px;margin:0 0 12px">Nueva solicitud para ${esc(venue)}</h1>
+      <table style="font-size:14px;border-collapse:collapse">${rows}</table>
+      ${r.message ? `<p style="white-space:pre-line;border-top:1px solid #e1e3e7;padding-top:12px">${esc(r.message)}</p>` : ""}
+      ${r.venues ? `<p><a href="${env.siteUrl}/espacios/${r.venues.slug}">Ver espacio</a></p>` : ""}
+      <p style="font-size:13px;color:#5b616b">Responde a este correo para escribirle directamente a ${esc(r.name.split(" ")[0])}.</p>`),
+  });
+  await send({
+    from: env.emailFrom,
+    to: r.email,
+    replyTo: CONTACT_EMAIL,
+    subject: `Recibimos tu solicitud para ${venue}`,
+    html: wrap(`<p>Hola ${esc(r.name.split(" ")[0])}, recibimos tu solicitud de cotización para <b>${esc(venue)}</b>.</p>
+      <p>Te escribimos pronto con disponibilidad y precios. Si quieres agregar algo, responde a este correo.</p>`),
   });
 }

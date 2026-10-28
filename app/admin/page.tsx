@@ -38,16 +38,32 @@ async function markPaid(payoutId: string, fd: FormData) {
   revalidatePath("/admin");
 }
 
+async function setRequestStatus(id: string, status: "new" | "contacted" | "closed") {
+  "use server";
+  await requireAdmin();
+  await admin().from("venue_requests").update({ status }).eq("id", id);
+  revalidatePath("/admin");
+}
+
+type VenueRequest = {
+  id: string; name: string; email: string; phone: string | null; event_type: string | null; event_date: string | null;
+  guests: number | null; budget: string | null; message: string; status: "new" | "contacted" | "closed"; created_at: string;
+  venues: { name: string; slug: string } | null;
+};
+const REQUEST_STATUS = { new: "Nueva", contacted: "Contactado", closed: "Cerrada" } as const;
+
 type Ev = EventRow & { profiles: { email: string | null; name: string | null } | null };
 
 export default async function Admin() {
   await requireAdmin();
   const db = admin();
-  const [{ data: pending }, { data: live }, { data: payouts }] = await Promise.all([
+  const [{ data: pending }, { data: live }, { data: payouts }, { data: requests }] = await Promise.all([
     db.from("events").select("*, profiles(email, name)").eq("status", "pending_review").order("created_at").returns<Ev[]>(),
     db.from("events").select("*, profiles(email, name)").in("status", ["live", "closed"]).order("starts_at").limit(100).returns<Ev[]>(),
     db.from("payouts").select("*, events(name)").eq("status", "requested").order("requested_at")
       .returns<{ id: string; amount: number; requested_at: string; events: { name: string } }[]>(),
+    db.from("venue_requests").select("*, venues(name, slug)").neq("status", "closed").order("created_at", { ascending: false }).limit(50)
+      .returns<VenueRequest[]>(),
   ]);
 
   return (
@@ -76,6 +92,29 @@ export default async function Admin() {
             </li>
           ))}
           {!pending?.length && <p className="text-sub">Nada pendiente.</p>}
+        </ul>
+      </section>
+
+      <section>
+        <h2 className="font-display font-bold text-xl">Solicitudes de espacios ({requests?.length ?? 0})</h2>
+        <ul className="mt-4 grid gap-3">
+          {(requests ?? []).map((r) => (
+            <li key={r.id} className="card p-4 grid gap-2 text-sm">
+              <div className="flex flex-wrap items-baseline gap-x-3">
+                <span className="font-semibold">{r.venues ? <Link href={`/espacios/${r.venues.slug}`} className="hover:underline">{r.venues.name}</Link> : "Ayuda para encontrar espacio"}</span>
+                <span className="text-sub">{new Date(r.created_at).toLocaleDateString("es-PA")}</span>
+                <span className={r.status === "new" ? "text-lime-text font-semibold" : "text-sub"}>{REQUEST_STATUS[r.status]}</span>
+              </div>
+              <p>{r.name} · <a className="underline" href={`mailto:${r.email}`}>{r.email}</a>{r.phone && <> · <a className="underline" href={`https://wa.me/${r.phone.replace(/\D/g, "")}`} target="_blank" rel="noopener">{r.phone}</a></>}</p>
+              <p className="text-sub">{[r.event_type, r.event_date, r.guests && `${r.guests} invitados`, r.budget && `Presupuesto ${r.budget}`].filter(Boolean).join(" · ")}</p>
+              {r.message && <p className="text-sub whitespace-pre-line">{r.message}</p>}
+              <form className="flex gap-2">
+                {r.status === "new" && <button formAction={setRequestStatus.bind(null, r.id, "contacted")} className="btn-lime h-8">Marcar contactado</button>}
+                <button formAction={setRequestStatus.bind(null, r.id, "closed")} className="btn-ghost h-8">Cerrar</button>
+              </form>
+            </li>
+          ))}
+          {!requests?.length && <p className="text-sub">Sin solicitudes abiertas.</p>}
         </ul>
       </section>
 

@@ -23,6 +23,7 @@ export async function Footer() {
         <div className={col}>
           <span className="text-main font-semibold">{t.footer_events}</span>
           <Link href="/busqueda">{t.nav_explore}</Link>
+          <Link href="/espacios">{t.nav_venues}</Link>
           <Link href="/tickets">{t.nav_tickets}</Link>
           <Link href="/blog">{t.footer_blog}</Link>
         </div>
