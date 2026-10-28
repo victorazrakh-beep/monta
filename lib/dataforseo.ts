@@ -11,8 +11,13 @@ export const dataForSeoConfigured = () => !!(process.env.DATAFORSEO_LOGIN && pro
 // Searches that together cover the kinds of places people rent for events around Panama City.
 export const DEFAULT_QUERIES = [
   "salón de eventos", "salón de fiestas", "salón de banquetes", "terraza para eventos", "jardín para eventos",
-  "rooftop bar", "centro de convenciones", "hotel con salones de eventos", "lugar para bodas", "event venue",
+  "centro de convenciones", "lugar para bodas", "event venue", "banquet hall", "salón para quinceañeras",
 ];
+
+// Google searches also return hotels, restaurants, offices and so on near a match. Only keep places whose main
+// Google category is an event space.
+const EVENT_SPACE = /sal[oó]n de (eventos|fiestas|banquetes|recepciones|convenciones)|sala de (eventos|fiestas)|lugar (para|de) (eventos|bodas|celebraciones)|centro de (convenciones|eventos|conferencias)|event venue|banquet hall|wedding venue|convention cent|conference cent|party venue|reception hall/i;
+export const isEventSpace = (category?: string | null) => !!category && EVENT_SPACE.test(category);
 const PANAMA_CITY = "8.9824,-79.5199,12z";
 
 interface MapsItem {
@@ -89,7 +94,9 @@ export async function importGoogleVenues(queries = DEFAULT_QUERIES) {
   const results = await Promise.allSettled(queries.map(search));
   const errors = results.flatMap((r) => (r.status === "rejected" ? [String(r.reason?.message ?? r.reason)] : []));
   const byCid = new Map<string, MapsItem>();
-  for (const r of results) if (r.status === "fulfilled") for (const i of r.value) if (i.cid && i.title && i.latitude && i.longitude) byCid.set(i.cid, i);
+  for (const r of results) if (r.status === "fulfilled") for (const i of r.value) {
+    if (i.cid && i.title && i.latitude && i.longitude && isEventSpace(i.category)) byCid.set(i.cid, i);
+  }
 
   const db = admin();
   const { data: existing } = await db.from("venues").select("id, google_cid, owner_id").not("google_cid", "is", null)
@@ -105,7 +112,7 @@ export async function importGoogleVenues(queries = DEFAULT_QUERIES) {
     if (prev) {
       // Claimed venues keep what their owner wrote; only Google's rating is refreshed.
       const patch = prev.owner_id ? fresh : {
-        ...fresh, name: i.title, category: i.category ?? null, zone: zoneOf(i), address: i.address ?? null, lat: i.latitude, lng: i.longitude,
+        ...fresh, status: "live", name: i.title, category: i.category ?? null, zone: zoneOf(i), address: i.address ?? null, lat: i.latitude, lng: i.longitude,
         phone: i.phone ?? null, website: i.url ?? null, ...(i.main_image ? { cover_url: i.main_image } : {}),
       };
       await db.from("venues").update(patch).eq("id", prev.id);
@@ -120,13 +127,11 @@ export async function importGoogleVenues(queries = DEFAULT_QUERIES) {
       if (error) errors.push(`${i.title}: ${error.message}`); else added++;
     }
   }
-  // Hide hand-added starter venues that Google now covers (same spot, within ~250 m), unless an owner manages them.
-  const { data: starters } = await db.from("venues").select("id, lat, lng").eq("source", "monta").eq("status", "live").is("owner_id", null)
-    .returns<{ id: string; lat: number | null; lng: number | null }[]>();
-  const near = (a: { lat: number | null; lng: number | null }, b: MapsItem) =>
-    a.lat != null && a.lng != null && Math.hypot(a.lat - b.latitude!, (a.lng - b.longitude!) * Math.cos((a.lat * Math.PI) / 180)) < 0.00225;
-  const dupes = (starters ?? []).filter((s) => [...byCid.values()].some((g) => near(s, g))).map((s) => s.id);
-  if (dupes.length) await db.from("venues").update({ status: "hidden" }).in("id", dupes);
+  // Hide unclaimed venues that aren't event spaces: earlier imports and the hand-added starter list (hotels, stadiums…).
+  const { data: live } = await db.from("venues").select("id, source, category").eq("status", "live").is("owner_id", null)
+    .returns<{ id: string; source: string; category: string | null }[]>();
+  const off = (live ?? []).filter((v) => v.source === "monta" || !isEventSpace(v.category)).map((v) => v.id);
+  for (let k = 0; k < off.length; k += 200) await db.from("venues").update({ status: "hidden" }).in("id", off.slice(k, k + 200));
 
-  return { found: byCid.size, added, updated, hidden: dupes.length, errors };
+  return { found: byCid.size, added, updated, hidden: off.length, errors };
 }
