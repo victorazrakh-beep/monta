@@ -46,7 +46,12 @@ const ZONES: [RegExp, string][] = [
 ];
 const zoneOf = (i: MapsItem) => {
   const text = [i.address, i.address_info?.borough].filter(Boolean).join(" ");
-  return ZONES.find(([re]) => re.test(text))?.[1] ?? i.address_info?.borough ?? "Ciudad de Panamá";
+  const known = ZONES.find(([re]) => re.test(text))?.[1];
+  if (known) return known;
+  // Google's borough field is sometimes a floor, a km marker or the city itself; keep only real place names.
+  const b = (i.address_info?.borough ?? "").trim();
+  const usable = /^[\p{L} .'-]{4,}$/u.test(b) && !/^(panam[aá]|floor|rooftop|urbaniza\w*|pianobar|local|piso)$/i.test(b);
+  return usable ? b : "Ciudad de Panamá";
 };
 
 // Map Google's category text to Monta's venue kinds.
