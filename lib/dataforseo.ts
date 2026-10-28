@@ -17,7 +17,11 @@ export const DEFAULT_QUERIES = [
 // Google searches also return hotels, restaurants, offices and so on near a match. Only keep places whose main
 // Google category is an event space.
 const EVENT_SPACE = /sal[oó]n (para|de) (eventos|fiestas|banquetes|bodas|recepciones|convenciones)|sala (de|para) (banquetes|eventos|fiestas|baile)|recinto (para|de) eventos|palacio de (exposiciones|congresos)|centro de (convenciones|eventos|conferencias)|lugar (para|de) (eventos|bodas|celebraciones)|event venue|banquet hall|wedding venue|convention cent|conference cent|ballroom/i;
-export const isEventSpace = (category?: string | null) => !!category && EVENT_SPACE.test(category);
+// …but hotels, restaurants, kids' play places and night spots often list "Salón para eventos" as their main category
+// because they rent out a room. Their name or other categories give them away.
+const NOT_A_VENUE = /hotel|hospedium|resort|restaur|steakhouse|gourmet|karaoke|night ?club|discoteca|sky ?bar|\bbar\b|lounge|parque infantil|sala infantil|fiestas infantiles|kidz|kids|play|animaci[oó]n|animador|catering|hostal|hostel|teatro|\\bpark\\b|parque|sheraton|intercontinental|marriott|hilton|hyatt|westin|sortis|\\briu\\b|waldorf|wyndham|radisson|holiday inn|crowne|decameron|bristol|sofitel|hard rock|doubletree|marriot/i;
+export const isEventSpace = (category?: string | null, name = "", otherCategories: string[] = []) =>
+  !!category && EVENT_SPACE.test(category) && !NOT_A_VENUE.test(name) && !otherCategories.some((c) => NOT_A_VENUE.test(c));
 const PANAMA_CITY = "8.9824,-79.5199,12z";
 
 interface MapsItem {
@@ -97,7 +101,7 @@ export async function importGoogleVenues(queries = DEFAULT_QUERIES) {
   const seen = new Map<string, number>(); // Google categories returned, kept or not, to tune EVENT_SPACE
   for (const r of results) if (r.status === "fulfilled") for (const i of r.value) {
     seen.set(i.category ?? "(none)", (seen.get(i.category ?? "(none)") ?? 0) + 1);
-    if (i.cid && i.title && i.latitude && i.longitude && isEventSpace(i.category)) byCid.set(i.cid, i);
+    if (i.cid && i.title && i.latitude && i.longitude && isEventSpace(i.category, i.title, i.additional_categories ?? [])) byCid.set(i.cid, i);
   }
   const categories = [...seen].sort((a, b) => b[1] - a[1]).slice(0, 40).map(([c, n]) => `${c} (${n})`);
 
@@ -130,10 +134,10 @@ export async function importGoogleVenues(queries = DEFAULT_QUERIES) {
     }
   }
   // Hide unclaimed venues that aren't event spaces: earlier imports and the hand-added starter list (hotels, stadiums…).
-  const { data: live } = await db.from("venues").select("id, source, category").eq("status", "live").is("owner_id", null)
-    .returns<{ id: string; source: string; category: string | null }[]>();
+  const { data: live } = await db.from("venues").select("id, source, name, category, google_cid").eq("status", "live").is("owner_id", null)
+    .returns<{ id: string; source: string; name: string; category: string | null; google_cid: string | null }[]>();
   // Never empty the directory because a search came back empty or Google renamed its categories.
-  const off = byCid.size === 0 ? [] : (live ?? []).filter((v) => v.source === "monta" || !isEventSpace(v.category)).map((v) => v.id);
+  const off = byCid.size === 0 ? [] : (live ?? []).filter((v) => v.source === "monta" || !isEventSpace(v.category, v.name) || !byCid.has(v.google_cid ?? "")).map((v) => v.id);
   for (let k = 0; k < off.length; k += 200) await db.from("venues").update({ status: "hidden" }).in("id", off.slice(k, k + 200));
 
   return { found: byCid.size, added, updated, hidden: off.length, errors, categories };
