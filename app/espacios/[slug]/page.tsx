@@ -8,6 +8,7 @@ import { getDict } from "@/lib/i18n-server";
 import { getProfile } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { moneyShort } from "@/lib/format";
+import { CONTACT_EMAIL } from "@/lib/contact";
 import { capacityText, getVenueBySlug, kindLabel, mapsUrl } from "@/lib/venues";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -35,7 +36,7 @@ export default async function VenuePage({ params }: Params) {
     "@context": "https://schema.org", "@type": "EventVenue", name: v.name, url: `${env.siteUrl}/espacios/${v.slug}`,
     address: v.address || v.zone, image: v.cover_url ? [v.cover_url] : undefined,
     geo: v.lat != null && v.lng != null ? { "@type": "GeoCoordinates", latitude: v.lat, longitude: v.lng } : undefined,
-    maximumAttendeeCapacity: v.capacity_max ?? undefined,
+    maximumAttendeeCapacity: v.capacity_max ?? undefined, telephone: v.phone ?? undefined,
   };
 
   return (
@@ -53,8 +54,11 @@ export default async function VenuePage({ params }: Params) {
             </div>
           )}
 
-          <p className="mt-6 text-sm font-semibold text-lime-text">{kindLabel(v.kind, lang)} · {v.zone}</p>
+          <p className="mt-6 text-sm font-semibold text-lime-text">{v.category || kindLabel(v.kind, lang)}{v.zone && ` · ${v.zone}`}</p>
           <h1 className="mt-1 font-display font-extrabold text-3xl md:text-5xl tracking-tight">{v.name}</h1>
+          {v.rating != null && (
+            <p className="mt-2 text-sub"><span className="text-main font-semibold">★ {Number(v.rating).toFixed(1)}</span> · {v.reviews_count} {t.venue_reviews}</p>
+          )}
 
           <dl className="mt-6 grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-line p-4">
@@ -95,8 +99,17 @@ export default async function VenuePage({ params }: Params) {
               <a className="chip" target="_blank" rel="noopener" href={mapsUrl(v)}>{t.open_map}</a>
               {v.instagram && <a className="chip" target="_blank" rel="noopener" href={`https://www.instagram.com/${v.instagram.replace(/^@/, "")}/`}>Instagram</a>}
               {v.website && <a className="chip" target="_blank" rel="noopener" href={v.website}>Web</a>}
+              {v.phone && <a className="chip" href={`tel:${v.phone.replace(/[^\d+]/g, "")}`}>{v.phone}</a>}
             </div>
           </section>
+
+          {v.source === "google" && !v.owner_id && (
+            <p className="mt-8 text-xs text-muted">
+              {t.venue_google_note}{" "}
+              <a className="underline underline-offset-2 hover:text-main"
+                href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(`Reclamar ${v.name} en Monta`)}`}>{t.venue_claim}</a>
+            </p>
+          )}
         </div>
 
         <aside className="md:sticky md:top-24 self-start card p-5">

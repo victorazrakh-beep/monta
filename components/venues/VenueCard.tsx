@@ -17,6 +17,8 @@ export function VenueCard({ v, lang, t }: { v: VenuePin; lang: Lang; t: Dict }) 
       <div className="mt-3">
         <h3 className="font-display font-bold leading-snug line-clamp-2 group-hover:underline underline-offset-4">{v.name}</h3>
         <p className="mt-1 text-sm text-sub line-clamp-1">
+          {v.rating != null && <span className="text-main font-semibold">★ {Number(v.rating).toFixed(1)}</span>}
+          {v.rating != null && <span> ({v.reviews_count}) · </span>}
           {v.zone}{v.capacity_max ? ` · ${t.venue_up_to} ${v.capacity_max}` : ""}
         </p>
         <p className="mt-1 text-sm font-semibold text-lime-text">

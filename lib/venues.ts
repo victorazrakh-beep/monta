@@ -48,16 +48,20 @@ export interface Venue {
   phone: string | null;
   status: "live" | "pending_review" | "hidden";
   featured: boolean;
+  source: "monta" | "google";
+  category: string | null;
+  rating: number | null;
+  reviews_count: number;
 }
 
 // What the list, cards and map need.
-export type VenuePin = Pick<Venue, "id" | "slug" | "name" | "kind" | "zone" | "lat" | "lng" | "capacity_max" | "price_from" | "cover_url">;
-const PIN_COLS = "id, slug, name, kind, zone, lat, lng, capacity_max, price_from, cover_url";
+export type VenuePin = Pick<Venue, "id" | "slug" | "name" | "kind" | "zone" | "lat" | "lng" | "capacity_max" | "price_from" | "cover_url" | "rating" | "reviews_count">;
+const PIN_COLS = "id, slug, name, kind, zone, lat, lng, capacity_max, price_from, cover_url, rating, reviews_count";
 
 export async function listVenues(opts: { q?: string; kind?: string; zone?: string; guests?: number } = {}) {
   if (!isConfigured()) return [];
   let query = admin().from("venues").select(PIN_COLS).eq("status", "live")
-    .order("featured", { ascending: false }).order("name");
+    .order("featured", { ascending: false }).order("reviews_count", { ascending: false }).order("name");
   if (opts.kind && (VENUE_KINDS as readonly string[]).includes(opts.kind)) query = query.eq("kind", opts.kind);
   if (opts.zone) query = query.eq("zone", opts.zone);
   // Venues with no capacity on file stay in the results: they may still fit.

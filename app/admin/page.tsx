@@ -4,11 +4,14 @@ import type { Metadata } from "next";
 import { admin } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth";
 import { sendReviewResult } from "@/lib/email";
+import { redirect } from "next/navigation";
+import { dataForSeoConfigured, importGoogleVenues } from "@/lib/dataforseo";
 import { eventDate, money } from "@/lib/format";
 import { STATUS } from "@/lib/status";
 import type { EventRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 export const metadata: Metadata = { title: "Admin", robots: { index: false } };
 
 async function review(eventId: string, approve: boolean, fd: FormData) {
@@ -38,6 +41,14 @@ async function markPaid(payoutId: string, fd: FormData) {
   revalidatePath("/admin");
 }
 
+async function importVenues() {
+  "use server";
+  await requireAdmin();
+  const r = await importGoogleVenues();
+  revalidatePath("/espacios");
+  redirect(`/admin?import=${encodeURIComponent(JSON.stringify({ found: r.found, added: r.added, updated: r.updated, errors: r.errors.slice(0, 5) }))}#espacios`);
+}
+
 async function setRequestStatus(id: string, status: "new" | "contacted" | "closed") {
   "use server";
   await requireAdmin();
@@ -54,8 +65,9 @@ const REQUEST_STATUS = { new: "Nueva", contacted: "Contactado", closed: "Cerrada
 
 type Ev = EventRow & { profiles: { email: string | null; name: string | null } | null };
 
-export default async function Admin() {
+export default async function Admin({ searchParams }: { searchParams: Promise<{ import?: string }> }) {
   await requireAdmin();
+  const imported = await searchParams.then((s) => { try { return s.import ? JSON.parse(s.import) as { found: number; added: number; updated: number; errors: string[] } : null; } catch { return null; } });
   const db = admin();
   const [{ data: pending }, { data: live }, { data: payouts }, { data: requests }] = await Promise.all([
     db.from("events").select("*, profiles(email, name)").eq("status", "pending_review").order("created_at").returns<Ev[]>(),
@@ -93,6 +105,20 @@ export default async function Admin() {
           ))}
           {!pending?.length && <p className="text-sub">Nada pendiente.</p>}
         </ul>
+      </section>
+
+      <section id="espacios" className="card p-4 grid gap-3">
+        <h2 className="font-display font-bold text-xl">Espacios desde Google Maps</h2>
+        <p className="text-sm text-sub">Busca salones, rooftops, hoteles y lugares para eventos en Ciudad de Panamá con DataForSEO y los agrega a /espacios. Los que ya existen se actualizan; los reclamados por su dueño solo actualizan la calificación. Cada importación cuesta unos centavos en DataForSEO.</p>
+        {dataForSeoConfigured() ? (
+          <form action={importVenues}><button className="btn-lime h-9">Importar desde Google Maps</button></form>
+        ) : (
+          <p className="text-sm text-danger">Faltan DATAFORSEO_LOGIN y DATAFORSEO_PASSWORD en Vercel.</p>
+        )}
+        {imported && (
+          <p className="text-sm">Encontrados {imported.found} · nuevos {imported.added} · actualizados {imported.updated}
+            {imported.errors.length > 0 && <span className="block text-danger">{imported.errors.join(" · ")}</span>}</p>
+        )}
       </section>
 
       <section>
