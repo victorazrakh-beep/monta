@@ -70,7 +70,7 @@ export async function listVenues(opts: { q?: string; kind?: string; zone?: strin
     const q = opts.q.replace(/[%,()]/g, " ").trim();
     if (q) query = query.or(`name.ilike.%${q}%,zone.ilike.%${q}%,address.ilike.%${q}%`);
   }
-  const { data, error } = await query.limit(300).returns<VenuePin[]>();
+  const { data, error } = await query.limit(2000).returns<VenuePin[]>();
   if (error) console.error(error);
   return data ?? [];
 }
